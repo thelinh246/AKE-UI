@@ -212,9 +212,9 @@ export default function InfoPage() {
       {/* Content */}
       <main className="py-8 sm:py-12 px-4">
         <div className="max-w-6xl mx-auto">
-          <div className="mb-8 sm:mb-12">
-            <h2 className="text-2xl sm:text-3xl font-bold text-foreground mb-2 sm:mb-3">{content.title}</h2>
-            <p className="text-base sm:text-lg text-muted-foreground">{content.description}</p>
+          <div className="mb-8 sm:mb-12 text-white">
+            <h2 className="text-2xl sm:text-3xl font-bold mb-2 sm:mb-3">{content.title}</h2>
+            <p className="text-base sm:text-lg text">{content.description}</p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
