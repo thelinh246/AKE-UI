@@ -147,7 +147,7 @@ export default function InfoPage() {
       className="min-h-screen bg-background"
       style={{
         backgroundImage: "url('/professional-visa-immigration-information-page-bac.jpg')",
-        backgroundSize: "cover",
+        backgroundSize: "100% 100%",
         backgroundPosition: "center",
         backgroundAttachment: "fixed",
       }}
@@ -178,11 +178,11 @@ export default function InfoPage() {
 
       {/* Hero Section */}
       <section className="py-8 sm:py-12 px-4 bg-gradient-to-b from-primary/10 to-transparent">
-        <div className="max-w-6xl mx-auto text-center">
-          <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-foreground mb-2 sm:mb-4 px-2">
+        <div className="max-w-6xl mx-auto text-white text-center">
+          <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold mb-2 sm:mb-4 px-2">
             Thông tin Visa Úc
           </h1>
-          <p className="text-base sm:text-lg text-muted-foreground max-w-2xl mx-auto px-2">
+          <p className="text-base sm:text-lg max-w-2xl mx-auto px-2">
             Hướng dẫn chi tiết về định cư, du học, và các loại visa tại Úc
           </p>
         </div>
@@ -241,7 +241,7 @@ export default function InfoPage() {
           </div>
 
           {/* CTA Section */}
-          <div className="mt-12 sm:mt-16 bg-gradient-to-r from-primary/10 to-accent/10 rounded-lg border border-border p-6 sm:p-8 text-center">
+          <div className="mt-12 bg-white sm:mt-16 bg-gradient-to-r from-primary/10 to-accent/10 rounded-lg border border-border p-6 sm:p-8 text-center">
             <h3 className="text-xl sm:text-2xl font-bold text-foreground mb-2 sm:mb-3">Cần tư vấn cá nhân?</h3>
             <p className="text-muted-foreground mb-4 sm:mb-6 max-w-2xl mx-auto text-sm sm:text-base px-2">
               Nói chuyện với trợ lý AI AusVisa của chúng tôi để nhận được tư vấn được cá nhân hóa dựa trên tình huống cụ

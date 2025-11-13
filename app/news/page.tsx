@@ -155,7 +155,7 @@ export default function NewsPage() {
       className="min-h-screen bg-background"
       style={{
         backgroundImage: "url('/professional-visa-immigration-information-page-bac.jpg')",
-        backgroundSize: "cover",
+        backgroundSize: "100% 100%",
         backgroundPosition: "center",
         backgroundAttachment: "fixed",
       }}
@@ -186,11 +186,11 @@ export default function NewsPage() {
 
       {/* Hero Section */}
       <section className="py-8 sm:py-12 px-4 bg-gradient-to-b from-primary/10 to-transparent">
-        <div className="max-w-6xl mx-auto text-center">
-          <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-foreground mb-2 sm:mb-4 px-2">
+        <div className="max-w-6xl mx-auto text-white text-center">
+          <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold mb-2 sm:mb-4 px-2">
             Tin Tức & Hướng Dẫn
           </h1>
-          <p className="text-base sm:text-lg text-muted-foreground max-w-2xl mx-auto px-2">
+          <p className="text-base sm:text-lg max-w-2xl mx-auto px-2">
             Cập nhật thông tin mới nhất về định cư, du học, và visa Úc
           </p>
         </div>
@@ -311,7 +311,7 @@ export default function NewsPage() {
           )}
 
           {/* Additional CTA Section */}
-          <div className="mt-12 sm:mt-16 bg-gradient-to-r from-primary/10 to-accent/10 rounded-lg border border-border p-6 sm:p-8 text-center">
+          <div className="mt-12 bg-white sm:mt-16 bg-gradient-to-r from-primary/10 to-accent/10 rounded-lg border border-border p-6 sm:p-8 text-center">
             <h3 className="text-xl sm:text-2xl font-bold text-foreground mb-2 sm:mb-3">Cần Tư Vấn Cá Nhân?</h3>
             <p className="text-muted-foreground mb-4 sm:mb-6 max-w-2xl mx-auto text-sm sm:text-base px-2">
               Để được tư vấn chi tiết về tình huống của bạn, hãy trò chuyện với trợ lý AI AusVisa.
