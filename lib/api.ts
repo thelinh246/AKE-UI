@@ -120,6 +120,12 @@ export const loginUser = (payload: { email: string; password: string }) =>
   })
 
 export const fetchCurrentUser = () => apiFetch<User>("/api/users/me")
+export const updateCurrentUser = (payload: Partial<User> & { password?: string }, token?: string | null) =>
+  apiFetch<User>("/api/users/me", {
+    method: "PUT",
+    body: JSON.stringify(payload),
+    tokenOverride: token ?? undefined,
+  })
 export const listUsers = (skip = 0, limit = 50, token?: string | null) =>
   apiFetch<User[]>(`/api/users?skip=${skip}&limit=${limit}`, { tokenOverride: token ?? undefined })
 export const activateUser = (id: number, token?: string | null) =>
@@ -188,6 +194,47 @@ export const fetchConversationMessages = (conversationId: number, token?: string
   apiFetch<ConversationMessage[]>(`/api/chatbot/conservations/${conversationId}/details`, {
     tokenOverride: token ?? undefined,
   })
+export const deleteConversation = (conversationId: number, token?: string | null) =>
+  apiFetch<void>(`/api/chatbot/conservations/${conversationId}`, {
+    method: "DELETE",
+    tokenOverride: token ?? undefined,
+  })
+
+// Admin Graph APIs
+export interface GraphNode {
+  id: string
+  label?: string
+  type?: string
+  x?: number
+  y?: number
+}
+
+export interface GraphEdge {
+  from: string
+  to: string
+  type?: string
+}
+
+export interface GraphSnapshot {
+  nodes: GraphNode[]
+  edges: GraphEdge[]
+}
+
+export interface LabelStat {
+  label: string
+  count: number
+}
+
+export interface GraphSummary {
+  node_count: number
+  relationship_count: number
+  relationship_types: string[]
+  labels: LabelStat[]
+  sample?: GraphSnapshot
+}
+
+export const fetchGraphSummary = (token?: string | null) =>
+  apiFetch<GraphSummary>("/api/admin/graph/summary", { tokenOverride: token ?? undefined })
 
 // System APIs
 export const healthCheck = () => apiFetch<{ status: string }>("/health", { skipAuth: true })

@@ -5,11 +5,12 @@ import type React from "react"
 import { useEffect, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
-import { Menu, MessageCircle, Send, Settings, X, LogOut } from "lucide-react"
+import { Menu, MessageCircle, Send, Settings, X, LogOut, Trash, ChevronsLeft, ChevronsRight } from "lucide-react"
 import type { ConversationSummary, User } from "@/lib/api"
 import {
   ApiError,
   clearStoredAuth,
+  deleteConversation,
   fetchConversationMessages,
   getStoredAuth,
   healthCheck,
@@ -43,7 +44,13 @@ export default function ChatPage() {
   const [conversations, setConversations] = useState<ConversationSummary[]>([])
   const [activeConversationId, setActiveConversationId] = useState<number | null>(null)
   const [statusMessage, setStatusMessage] = useState<string | null>(null)
+  const [deletingId, setDeletingId] = useState<number | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+
+  const formatTitle = (title: string, max = 28) => {
+    if (!title) return "Cuộc trò chuyện"
+    return title.length > max ? `${title.slice(0, max)}...` : title
+  }
 
   const scrollToBottom = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" })
@@ -114,6 +121,26 @@ export default function ChatPage() {
     setActiveConversationId(null)
     setMessages([initialBotMessage])
     setStatusMessage(null)
+  }
+
+  const handleDeleteConversation = async (conversationId: number) => {
+    if (!token) {
+      setStatusMessage("Vui lòng đăng nhập để xóa hội thoại.")
+      return
+    }
+    setDeletingId(conversationId)
+    setStatusMessage(null)
+    try {
+      await deleteConversation(conversationId, token)
+      if (activeConversationId === conversationId) {
+        resetChat()
+      }
+      await refreshConversations(token)
+    } catch (err) {
+      handleApiError(err, "Không thể xóa hội thoại.")
+    } finally {
+      setDeletingId(null)
+    }
   }
 
   const handleLogout = () => {
@@ -191,15 +218,23 @@ export default function ChatPage() {
     >
       {/* Sidebar */}
       <div
-        className={`${sidebarOpen ? "w-64" : "w-0"} transition-all duration-300 border-r border-border flex flex-col bg-card/95 backdrop-blur-sm overflow-hidden`}
+        className={`${sidebarOpen ? "w-72" : "w-0"} transition-all duration-300 border-r border-border flex flex-col bg-card/95 backdrop-blur-sm overflow-hidden`}
       >
-        <div className="p-4 border-b border-border">
+        <div className="p-4 border-b border-border flex items-center justify-between gap-2">
           <Link href="/" className="flex items-center gap-2 hover:opacity-80 transition-opacity">
             <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
               <span className="text-primary-foreground font-bold">A</span>
             </div>
             <span className="font-bold text-foreground truncate">AusVisa</span>
           </Link>
+          <Button
+            size="icon"
+            variant="ghost"
+            className="text-muted-foreground hover:text-foreground"
+            onClick={() => setSidebarOpen((prev) => !prev)}
+          >
+            {sidebarOpen ? <ChevronsLeft className="w-4 h-4" /> : <ChevronsRight className="w-4 h-4" />}
+          </Button>
         </div>
 
         <div className="flex-1 overflow-y-auto p-4 space-y-2">
@@ -215,14 +250,24 @@ export default function ChatPage() {
           {!token && <p className="text-xs text-muted-foreground px-2">Đăng nhập để xem lịch sử hội thoại</p>}
           {token &&
             conversations.map((conversation) => (
-              <Button
-                key={conversation.id}
-                variant={conversation.id === activeConversationId ? "secondary" : "ghost"}
-                className="w-full justify-start gap-2 text-muted-foreground hover:text-foreground text-sm"
-                onClick={() => loadConversationHistory(conversation.id)}
-              >
-                <span className="truncate">{conversation.title || `Cuộc trò chuyện #${conversation.id}`}</span>
-              </Button>
+              <div key={conversation.id} className="flex items-center gap-1 w-full">
+                <Button
+                  variant={conversation.id === activeConversationId ? "secondary" : "ghost"}
+                  className="flex-1 min-w-0 justify-start gap-2 text-muted-foreground hover:text-foreground text-sm"
+                  onClick={() => loadConversationHistory(conversation.id)}
+                >
+                  <span className="truncate">{formatTitle(conversation.title || `Cuộc trò chuyện #${conversation.id}`)}</span>
+                </Button>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="text-muted-foreground hover:text-destructive shrink-0"
+                  disabled={deletingId === conversation.id}
+                  onClick={() => handleDeleteConversation(conversation.id)}
+                >
+                  <Trash className="w-4 h-4" />
+                </Button>
+              </div>
             ))}
         </div>
 
@@ -255,14 +300,26 @@ export default function ChatPage() {
       <div className="flex-1 flex flex-col bg-background/80 backdrop-blur-sm">
         {/* Header */}
         <div className="border-b border-border bg-card/95 backdrop-blur-sm px-6 py-4 flex items-center justify-between">
-          <Button variant="ghost" size="icon" onClick={() => setSidebarOpen(!sidebarOpen)} className="lg:hidden">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => setSidebarOpen(!sidebarOpen)}
+            className={sidebarOpen ? "lg:hidden" : ""}
+          >
             {sidebarOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
           </Button>
           <h1 className="text-lg font-semibold text-foreground">Tư vấn visa Úc AI</h1>
-          <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
-            <span className="text-sm font-bold text-primary">
-              {user?.full_name?.[0] || user?.email?.[0]?.toUpperCase() || "A"}
-            </span>
+          <div className="flex items-center gap-2">
+            {user && (
+              <Link href="/profile" className="text-sm text-primary hover:underline">
+                Hồ sơ
+              </Link>
+            )}
+            <div className="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center">
+              <span className="text-sm font-bold text-primary">
+                {user?.full_name?.[0] || user?.email?.[0]?.toUpperCase() || "A"}
+              </span>
+            </div>
           </div>
         </div>
 

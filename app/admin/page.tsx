@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { ArrowDownRight, ArrowUpRight, Link2, Play, ShieldCheck, UserPlus, Users, LogOut } from "lucide-react"
+import { ArrowDownRight, ArrowUpRight, Link2, ShieldCheck, Users, LogOut, UserPlus } from "lucide-react"
 import { useRouter } from "next/navigation"
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
@@ -11,30 +11,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { activateUser, clearStoredAuth, deactivateUser, getStoredAuth, listUsers } from "@/lib/api"
-import type { User } from "@/lib/api"
+import { activateUser, clearStoredAuth, deactivateUser, fetchGraphSummary, getStoredAuth, listUsers } from "@/lib/api"
+import type { GraphSummary, User } from "@/lib/api"
 
 type UserStatus = "active" | "pending" | "suspended"
-
-const graphNodes = [
-  { id: "user-01", label: "Bảo Anh", type: "user", x: 60, y: 60 },
-  { id: "user-02", label: "Minh Khoa", type: "user", x: 240, y: 40 },
-  { id: "user-03", label: "Gia Huy", type: "user", x: 330, y: 120 },
-  { id: "role-admin", label: "Role: Admin", type: "role", x: 150, y: 140 },
-  { id: "role-editor", label: "Role: Editor", type: "role", x: 260, y: 180 },
-  { id: "tenant", label: "Tenant: AusVisa", type: "tenant", x: 120, y: 210 },
-  { id: "cluster", label: "Neo4j Cluster", type: "cluster", x: 320, y: 230 },
-]
-
-const graphEdges = [
-  { from: "user-01", to: "role-admin" },
-  { from: "user-02", to: "role-editor" },
-  { from: "user-03", to: "role-editor" },
-  { from: "role-admin", to: "tenant" },
-  { from: "role-editor", to: "tenant" },
-  { from: "tenant", to: "cluster" },
-  { from: "role-admin", to: "cluster" },
-]
 
 const statusStyle: Record<UserStatus, { label: string; variant: "secondary" | "outline"; tone: string }> = {
   active: { label: "Hoạt động", variant: "secondary", tone: "text-green-700" },
@@ -48,11 +28,12 @@ const actionStyle: Record<UserStatus, { label: string; variant: "destructive" | 
   suspended: { label: "Activate", variant: "secondary" },
 }
 
-const nodeColors: Record<string, string> = {
+const typeColors: Record<string, string> = {
   user: "hsl(var(--primary))",
   role: "hsl(var(--accent))",
   tenant: "hsl(var(--secondary))",
   cluster: "hsl(var(--muted-foreground))",
+  default: "hsl(var(--primary))",
 }
 
 export default function AdminPage() {
@@ -65,6 +46,9 @@ export default function AdminPage() {
   const [authChecked, setAuthChecked] = useState(false)
   const [user, setUser] = useState<User | null>(null)
   const [token, setToken] = useState<string | null>(null)
+  const [graphSummary, setGraphSummary] = useState<GraphSummary | null>(null)
+  const [graphError, setGraphError] = useState<string | null>(null)
+  const [isGraphLoading, setIsGraphLoading] = useState(false)
   const router = useRouter()
 
   useEffect(() => {
@@ -85,6 +69,7 @@ export default function AdminPage() {
   useEffect(() => {
     if (!authChecked || !token) return
     fetchUsers()
+    fetchGraphSummaryData()
   }, [authChecked, token])
 
   const fetchUsers = async () => {
@@ -106,6 +91,38 @@ export default function AdminPage() {
     clearStoredAuth()
     router.replace("/")
   }
+
+  const fetchGraphSummaryData = async () => {
+    if (!token) return
+    setIsGraphLoading(true)
+    setGraphError(null)
+    try {
+      const data = await fetchGraphSummary(token)
+      setGraphSummary(data)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Không thể tải dữ liệu đồ thị."
+      setGraphError(message)
+    } finally {
+      setIsGraphLoading(false)
+    }
+  }
+
+  const withPositions = (nodes: { id: string; label?: string; type?: string; x?: number; y?: number }[]) => {
+    const width = 400
+    const height = 260
+    const cols = 4
+    const rowHeight = Math.floor(height / Math.ceil(nodes.length / cols || 1))
+    return nodes.map((node, idx) => {
+      if (typeof node.x === "number" && typeof node.y === "number") return { ...node, x: node.x, y: node.y }
+      const col = idx % cols
+      const row = Math.floor(idx / cols)
+      const x = 60 + col * ((width - 80) / Math.max(cols - 1, 1))
+      const y = 60 + row * (rowHeight || 40)
+      return { ...node, x, y }
+    })
+  }
+
+  const sampleNodes = graphSummary?.sample?.nodes ? withPositions(graphSummary.sample.nodes) : []
 
   const filteredUsers = useMemo(() => {
     const keyword = search.toLowerCase()
@@ -205,14 +222,6 @@ export default function AdminPage() {
             <Badge variant="secondary" className="hidden sm:flex">
               Vai trò: {user?.role || "Admin"}
             </Badge>
-            <Button variant="outline" size="sm" className="gap-2">
-              <Play className="h-4 w-4" />
-              Đồng bộ Neo4j
-            </Button>
-            <Button className="bg-primary hover:bg-primary/90 text-primary-foreground gap-2 shadow-sm">
-              <UserPlus className="h-4 w-4" />
-              Thêm người dùng
-            </Button>
             <Button
               variant="ghost"
               size="sm"
@@ -361,99 +370,63 @@ export default function AdminPage() {
             <Card className="border-border/80 bg-card/80 backdrop-blur">
               <CardHeader className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                 <div className="space-y-1">
-                  <CardTitle className="text-lg font-semibold">Đồ thị Neo4j (User → Role → Tenant)</CardTitle>
-                  <p className="text-sm text-muted-foreground">
-                    Xem nhanh liên kết người dùng, vai trò và node tenant trên cluster Neo4j.
-                  </p>
+                  <CardTitle className="text-lg font-semibold">Đồ thị Neo4j</CardTitle>
+                  <p className="text-sm text-muted-foreground">Thống kê nhanh và mẫu subgraph từ Neo4j.</p>
                 </div>
                 <div className="flex flex-wrap gap-2">
                   <Badge variant="outline" className="gap-1">
-                    <Link2 className="h-3.5 w-3.5" /> 7 nodes · {graphEdges.length} edges
+                    <Link2 className="h-3.5 w-3.5" />{" "}
+                    {graphSummary
+                      ? `${graphSummary.node_count} nodes · ${graphSummary.relationship_count} edges`
+                      : isGraphLoading
+                        ? "Đang tải..."
+                        : "—"}
                   </Badge>
                   <Badge variant="secondary" className="gap-1">
                     <ShieldCheck className="h-3.5 w-3.5" /> Aura secured
                   </Badge>
                 </div>
               </CardHeader>
-              <CardContent className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                <div className="lg:col-span-2 rounded-xl border border-border/60 bg-muted/10 p-3">
-                  <svg viewBox="0 0 400 260" className="w-full h-full">
-                    {graphEdges.map((edge) => {
-                      const from = graphNodes.find((n) => n.id === edge.from)
-                      const to = graphNodes.find((n) => n.id === edge.to)
-                      if (!from || !to) return null
-                      return (
-                        <line
-                          key={`${edge.from}-${edge.to}`}
-                          x1={from.x}
-                          y1={from.y}
-                          x2={to.x}
-                          y2={to.y}
-                          stroke="var(--border)"
-                          strokeWidth="1.5"
-                          strokeLinecap="round"
-                        />
-                      )
-                    })}
-                    {graphNodes.map((node) => (
-                      <g key={node.id}>
-                        <circle
-                          cx={node.x}
-                          cy={node.y}
-                          r={14}
-                          fill={nodeColors[node.type] || "hsl(var(--primary))"}
-                          stroke="white"
-                          strokeWidth="2"
-                          opacity="0.92"
-                        />
-                        <text x={node.x} y={node.y + 28} textAnchor="middle" className="text-[10px] fill-muted-foreground">
-                          {node.label}
-                        </text>
-                      </g>
-                    ))}
-                  </svg>
-                </div>
-                <div className="space-y-4">
-                  <div className="rounded-lg border border-border/60 p-3">
-                    <p className="text-sm font-semibold mb-2">Legend</p>
-                    <div className="space-y-2">
-                      <div className="flex items-center gap-2">
-                        <span className="h-3 w-3 rounded-full" style={{ background: nodeColors.user }} />
-                        <span className="text-sm text-muted-foreground">User</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="h-3 w-3 rounded-full" style={{ background: nodeColors.role }} />
-                        <span className="text-sm text-muted-foreground">Role</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="h-3 w-3 rounded-full" style={{ background: nodeColors.tenant }} />
-                        <span className="text-sm text-muted-foreground">Tenant</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <span className="h-3 w-3 rounded-full" style={{ background: nodeColors.cluster }} />
-                        <span className="text-sm text-muted-foreground">Cluster</span>
-                      </div>
+              <CardContent className="space-y-4">
+                {graphError && <p className="text-sm text-destructive">{graphError}</p>}
+                {!graphError && isGraphLoading && <p className="text-sm text-muted-foreground">Đang tải dữ liệu đồ thị...</p>}
+                {!graphError && !isGraphLoading && (
+                  <>
+                    <div className="flex gap-2 flex-wrap">
+                      <Badge variant="outline" className="text-xs">
+                        Nodes: {graphSummary?.node_count ?? "—"}
+                      </Badge>
+                      <Badge variant="outline" className="text-xs">
+                        Edges: {graphSummary?.relationship_count ?? "—"}
+                      </Badge>
                     </div>
-                  </div>
-                  <ScrollArea className="h-[160px] rounded-lg border border-border/60 p-3">
-                    <div className="space-y-2">
-                      {graphEdges.map((edge) => {
-                        const from = graphNodes.find((n) => n.id === edge.from)
-                        const to = graphNodes.find((n) => n.id === edge.to)
-                        return (
-                          <div key={`${edge.from}-${edge.to}`} className="flex items-center justify-between text-sm">
-                            <span className="text-muted-foreground">
-                              {from?.label} → {to?.label}
-                            </span>
-                            <Badge variant="outline" className="text-[10px]">
-                              RELATES_TO
+                    {graphSummary?.relationship_types?.length ? (
+                      <div>
+                        <p className="text-xs text-muted-foreground mb-1">Loại quan hệ</p>
+                        <div className="flex flex-wrap gap-2">
+                          {graphSummary.relationship_types.map((rel) => (
+                            <Badge key={rel} variant="secondary" className="text-xs">
+                              {rel}
                             </Badge>
-                          </div>
-                        )
-                      })}
-                    </div>
-                  </ScrollArea>
-                </div>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
+                    {graphSummary?.labels?.length ? (
+                      <div>
+                        <p className="text-xs text-muted-foreground mb-1">Nhãn phổ biến</p>
+                        <div className="flex flex-wrap gap-2">
+                          {graphSummary.labels.map((label) => (
+                            <Badge key={label.label} variant="outline" className="text-xs">
+                              {label.label}: {label.count}
+                            </Badge>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
+                    {!graphSummary && <p className="text-sm text-muted-foreground">Chưa có thống kê.</p>}
+                  </>
+                )}
               </CardContent>
             </Card>
           </CardContent>

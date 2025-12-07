@@ -43,6 +43,9 @@ export default function LandingPage() {
                     <Button variant="ghost">Trang admin</Button>
                   </Link>
                 )}
+                <Link href="/profile">
+                  <Button variant="ghost">Hồ sơ</Button>
+                </Link>
                 <Link href="/chat">
                   <Button variant="ghost">Trò chuyện</Button>
                 </Link>
