@@ -1,6 +1,8 @@
 "use client"
 
 import type React from "react"
+import ReactMarkdown from "react-markdown"
+import remarkGfm from "remark-gfm"
 
 import { useEffect, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
@@ -364,7 +366,27 @@ export default function ChatPage() {
                     : "bg-card border border-border rounded-bl-none"
                 }`}
               >
-                <p className="text-sm leading-relaxed">{message.content}</p>
+                <ReactMarkdown
+                  remarkPlugins={[remarkGfm]}
+                  components={{
+                    p: ({ children }) => (
+                      <p className="my-2 leading-relaxed">{children}</p>
+                    ),
+                    ul: ({ children }) => (
+                      <ul className="list-disc ml-6 my-2">{children}</ul>
+                    ),
+                    li: ({ children }) => (
+                      <li className="my-1">{children}</li>
+                    ),
+                    a: ({ href, children }) => (
+                      <a href={href} className="text-blue-600 underline" target="_blank">
+                        {children}
+                      </a>
+                    ),
+                  }}
+                >
+                  {message.content}
+                </ReactMarkdown>
                 <span className="text-xs opacity-70 mt-2 block">
                   {message.timestamp.toLocaleTimeString("vi-VN", { hour: "2-digit", minute: "2-digit" })}
                 </span>
