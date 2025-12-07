@@ -6,17 +6,38 @@ import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { Mail, Lock, ArrowRight } from "lucide-react"
+import { loginUser, storeAuth, ApiError } from "@/lib/api"
+import { useRouter } from "next/navigation"
 
 export default function LoginPage() {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState<string | null>(null)
+  const router = useRouter()
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    setError(null)
+    setSuccess(null)
     setIsLoading(true)
-    await new Promise((resolve) => setTimeout(resolve, 1000))
-    setIsLoading(false)
+    try {
+      const data = await loginUser({ email, password })
+      storeAuth(data.access_token, data.user)
+      const destination = data.user.role?.toLowerCase() === "admin" ? "/admin" : "/chat"
+      setSuccess(
+        data.user.role?.toLowerCase() === "admin"
+          ? "Chào mừng admin. Đang chuyển sang trang quản trị..."
+          : "Đăng nhập thành công. Đang chuyển sang trò chuyện...",
+      )
+      setTimeout(() => router.push(destination), 400)
+    } catch (err) {
+      const message = err instanceof ApiError ? err.message : "Đăng nhập thất bại. Vui lòng thử lại."
+      setError(message)
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   return (
@@ -40,11 +61,6 @@ export default function LoginPage() {
             <span className="text-lg font-bold text-foreground">AusVisa</span>
           </Link>
           <div className="flex gap-2 sm:gap-4">
-            <Link href="/news">
-              <Button variant="ghost" size="sm" className="text-xs sm:text-base">
-                Tin tức
-              </Button>
-            </Link>
             <Link href="/register">
               <Button variant="ghost" size="sm" className="text-xs sm:text-base">
                 Đăng ký
@@ -69,6 +85,8 @@ export default function LoginPage() {
 
         {/* Login Form */}
         <div className="bg-card rounded-2xl border border-border p-6 sm:p-8 shadow-lg">
+          {error && <div className="mb-4 text-sm text-destructive">{error}</div>}
+          {success && <div className="mb-4 text-sm text-emerald-600">{success}</div>}
           <form onSubmit={handleSubmit} className="space-y-4">
             {/* Email Input */}
             <div>

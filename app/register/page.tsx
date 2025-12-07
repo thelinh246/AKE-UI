@@ -6,6 +6,8 @@ import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { Mail, Lock, User, ArrowRight } from "lucide-react"
+import { registerUser, ApiError } from "@/lib/api"
+import { useRouter } from "next/navigation"
 
 export default function RegisterPage() {
   const [formData, setFormData] = useState({
@@ -16,6 +18,9 @@ export default function RegisterPage() {
     agreeToTerms: false,
   })
   const [isLoading, setIsLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [success, setSuccess] = useState<string | null>(null)
+  const router = useRouter()
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value, type, checked } = e.target
@@ -27,13 +32,33 @@ export default function RegisterPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    setError(null)
+    setSuccess(null)
     if (formData.password !== formData.confirmPassword) {
-      alert("Mật khẩu không khớp")
+      setError("Mật khẩu không khớp. Vui lòng kiểm tra lại.")
+      return
+    }
+    if (!formData.agreeToTerms) {
+      setError("Vui lòng chấp nhận điều khoản để tiếp tục.")
       return
     }
     setIsLoading(true)
-    await new Promise((resolve) => setTimeout(resolve, 1000))
-    setIsLoading(false)
+    try {
+      await registerUser({
+        email: formData.email,
+        username: formData.email.split("@")[0],
+        full_name: formData.fullName,
+        password: formData.password,
+        role: "user",
+      })
+      setSuccess("Đăng ký thành công. Vui lòng đăng nhập để tiếp tục.")
+      setTimeout(() => router.push("/login"), 700)
+    } catch (err) {
+      const message = err instanceof ApiError ? err.message : "Đăng ký thất bại. Vui lòng thử lại."
+      setError(message)
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   return (
@@ -58,11 +83,6 @@ export default function RegisterPage() {
             <span className="text-lg font-bold text-foreground">AusVisa</span>
           </Link>
           <div className="flex gap-2 sm:gap-4">
-            <Link href="/news">
-              <Button variant="ghost" size="sm" className="text-xs sm:text-base">
-                Tin tức
-              </Button>
-            </Link>
             <Link href="/login">
               <Button variant="ghost" size="sm" className="text-xs sm:text-base">
                 Đăng nhập
@@ -87,6 +107,8 @@ export default function RegisterPage() {
 
         {/* Registration Form */}
         <div className="bg-card rounded-2xl border border-border p-6 sm:p-8 shadow-lg">
+          {error && <div className="mb-4 text-sm text-destructive">{error}</div>}
+          {success && <div className="mb-4 text-sm text-emerald-600">{success}</div>}
           <form onSubmit={handleSubmit} className="space-y-4">
             {/* Full Name Input */}
             <div>

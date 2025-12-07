@@ -1,7 +1,29 @@
+"use client"
+
+import { useEffect, useState } from "react"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
+import { clearStoredAuth, getStoredAuth } from "@/lib/api"
+import type { User } from "@/lib/api"
+import { useRouter } from "next/navigation"
 
 export default function LandingPage() {
+  const [currentUser, setCurrentUser] = useState<User | null>(null)
+  const router = useRouter()
+
+  useEffect(() => {
+    const stored = getStoredAuth()
+    if (stored?.user) {
+      setCurrentUser(stored.user)
+    }
+  }, [])
+
+  const handleLogout = () => {
+    clearStoredAuth()
+    setCurrentUser(null)
+    router.replace("/")
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-background to-muted">
       {/* Navigation */}
@@ -13,16 +35,31 @@ export default function LandingPage() {
             </div>
             <span className="text-xl font-bold text-foreground">AusVisa</span>
           </div>
-          <div className="flex gap-4">
-            <Link href="/news">
-              <Button variant="ghost">Tin tức</Button>
-            </Link>
-            <Link href="/login">
-              <Button variant="ghost">Đăng nhập</Button>
-            </Link>
-            <Link href="/register">
-              <Button className="bg-primary hover:bg-primary/90 text-primary-foreground">Đăng ký</Button>
-            </Link>
+          <div className="flex gap-2 sm:gap-3 items-center">
+            {currentUser ? (
+              <>
+                {currentUser.role?.toLowerCase() === "admin" && (
+                  <Link href="/admin">
+                    <Button variant="ghost">Trang admin</Button>
+                  </Link>
+                )}
+                <Link href="/chat">
+                  <Button variant="ghost">Trò chuyện</Button>
+                </Link>
+                <Button onClick={handleLogout} variant="outline">
+                  Đăng xuất
+                </Button>
+              </>
+            ) : (
+              <>
+                <Link href="/login">
+                  <Button variant="ghost">Đăng nhập</Button>
+                </Link>
+                <Link href="/register">
+                  <Button className="bg-primary hover:bg-primary/90 text-primary-foreground">Đăng ký</Button>
+                </Link>
+              </>
+            )}
           </div>
         </div>
       </nav>

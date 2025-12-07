@@ -1,7 +1,8 @@
 "use client"
 
-import { useMemo, useState } from "react"
-import { ArrowDownRight, ArrowUpRight, Link2, Play, ShieldCheck, UserPlus, Users } from "lucide-react"
+import { useEffect, useMemo, useState } from "react"
+import { ArrowDownRight, ArrowUpRight, Link2, Play, ShieldCheck, UserPlus, Users, LogOut } from "lucide-react"
+import { useRouter } from "next/navigation"
 
 import { Avatar, AvatarFallback } from "@/components/ui/avatar"
 import { Badge } from "@/components/ui/badge"
@@ -10,87 +11,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { activateUser, clearStoredAuth, deactivateUser, getStoredAuth, listUsers } from "@/lib/api"
+import type { User } from "@/lib/api"
 
 type UserStatus = "active" | "pending" | "suspended"
-
-const userStats = [
-  {
-    title: "Tổng người dùng",
-    value: "1,204",
-    meta: "+42 trong tuần",
-    trend: "up",
-    icon: <Users className="h-4 w-4 text-primary" />,
-  },
-  {
-    title: "Đang hoạt động",
-    value: "876",
-    meta: "72% online",
-    trend: "up",
-    icon: <ShieldCheck className="h-4 w-4 text-green-600" />,
-  },
-  {
-    title: "Chờ duyệt",
-    value: "68",
-    meta: "+8 yêu cầu",
-    trend: "up",
-    icon: <UserPlus className="h-4 w-4 text-accent" />,
-  },
-  {
-    title: "Bị tạm khóa",
-    value: "12",
-    meta: "-3 so với hôm qua",
-    trend: "down",
-    icon: <ArrowDownRight className="h-4 w-4 text-red-500" />,
-  },
-]
-
-const users = [
-  {
-    name: "Nguyễn Bảo Anh",
-    email: "baoanh@ausvisa.ai",
-    role: "Admin",
-    status: "active" as UserStatus,
-    neoId: "#1273",
-    lastActive: "2 giờ trước",
-    sessions: 12,
-  },
-  {
-    name: "Lê Minh Khoa",
-    email: "khoa.le@ausvisa.ai",
-    role: "Editor",
-    status: "active" as UserStatus,
-    neoId: "#1281",
-    lastActive: "35 phút trước",
-    sessions: 9,
-  },
-  {
-    name: "Trần Gia Huy",
-    email: "huy.tran@ausvisa.ai",
-    role: "Reviewer",
-    status: "pending" as UserStatus,
-    neoId: "#1294",
-    lastActive: "Chưa đăng nhập",
-    sessions: 0,
-  },
-  {
-    name: "Phạm Thu Hà",
-    email: "ha.pham@ausvisa.ai",
-    role: "Support",
-    status: "suspended" as UserStatus,
-    neoId: "#1199",
-    lastActive: "5 ngày trước",
-    sessions: 2,
-  },
-  {
-    name: "Đỗ Thảo My",
-    email: "my.do@ausvisa.ai",
-    role: "Editor",
-    status: "active" as UserStatus,
-    neoId: "#1301",
-    lastActive: "12 phút trước",
-    sessions: 6,
-  },
-]
 
 const graphNodes = [
   { id: "user-01", label: "Bảo Anh", type: "user", x: 60, y: 60 },
@@ -134,15 +58,135 @@ const nodeColors: Record<string, string> = {
 export default function AdminPage() {
   const [search, setSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState<UserStatus | "all">("all")
+  const [userList, setUserList] = useState<User[]>([])
+  const [isUsersLoading, setIsUsersLoading] = useState(false)
+  const [userError, setUserError] = useState<string | null>(null)
+  const [actionLoadingId, setActionLoadingId] = useState<number | null>(null)
+  const [authChecked, setAuthChecked] = useState(false)
+  const [user, setUser] = useState<User | null>(null)
+  const [token, setToken] = useState<string | null>(null)
+  const router = useRouter()
+
+  useEffect(() => {
+    const stored = getStoredAuth()
+    if (!stored) {
+      router.replace("/")
+      return
+    }
+    setUser(stored.user)
+    setToken(stored.token)
+    if (stored.user?.role?.toLowerCase() !== "admin") {
+      router.replace("/chat")
+      return
+    }
+    setAuthChecked(true)
+  }, [router])
+
+  useEffect(() => {
+    if (!authChecked || !token) return
+    fetchUsers()
+  }, [authChecked, token])
+
+  const fetchUsers = async () => {
+    if (!token) return
+    setIsUsersLoading(true)
+    setUserError(null)
+    try {
+      const data = await listUsers(0, 50, token)
+      setUserList(data)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Không thể tải danh sách người dùng."
+      setUserError(message)
+    } finally {
+      setIsUsersLoading(false)
+    }
+  }
+
+  const handleLogout = () => {
+    clearStoredAuth()
+    router.replace("/")
+  }
 
   const filteredUsers = useMemo(() => {
     const keyword = search.toLowerCase()
-    return users.filter((u) => {
-      const matchesKeyword = `${u.name} ${u.email} ${u.role}`.toLowerCase().includes(keyword)
-      const matchesStatus = statusFilter === "all" ? true : u.status === statusFilter
-      return matchesKeyword && matchesStatus
-    })
-  }, [search, statusFilter])
+    return userList
+      .map((u) => ({
+        id: u.id,
+        name: u.full_name || u.username || u.email,
+        email: u.email,
+        role: u.role || "user",
+        status: (u.is_activate ?? u.is_active) === false ? "suspended" : "active",
+        createdAt: u.created_at,
+      }))
+      .filter((u) => {
+        const matchesKeyword = `${u.name} ${u.email} ${u.role}`.toLowerCase().includes(keyword)
+        const matchesStatus = statusFilter === "all" ? true : u.status === statusFilter
+        return matchesKeyword && matchesStatus
+      })
+  }, [search, statusFilter, userList])
+
+  const handleToggleStatus = async (targetId: number, status: UserStatus) => {
+    if (!token) return
+    setActionLoadingId(targetId)
+    setUserError(null)
+    try {
+      if (status === "active") {
+        await deactivateUser(targetId, token)
+      } else {
+        await activateUser(targetId, token)
+      }
+      await fetchUsers()
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Không thể cập nhật trạng thái người dùng."
+      setUserError(message)
+    } finally {
+      setActionLoadingId(null)
+    }
+  }
+
+  const totalUsers = userList.length
+  const activeUsers = userList.filter((u) => (u.is_activate ?? u.is_active) !== false).length
+  const suspendedUsers = userList.filter((u) => (u.is_activate ?? u.is_active) === false).length
+  const pendingUsers = Math.max(totalUsers - activeUsers - suspendedUsers, 0)
+
+  const overviewStats = [
+    {
+      title: "Tổng người dùng",
+      value: totalUsers ? totalUsers.toString() : "—",
+      meta: totalUsers ? `${activeUsers} đang hoạt động` : "Chưa có dữ liệu",
+      trend: "up",
+      icon: <Users className="h-4 w-4 text-primary" />,
+    },
+    {
+      title: "Đang hoạt động",
+      value: activeUsers.toString(),
+      meta: `${suspendedUsers} tạm khóa`,
+      trend: "up",
+      icon: <ShieldCheck className="h-4 w-4 text-green-600" />,
+    },
+    {
+      title: "Chờ duyệt",
+      value: pendingUsers.toString(),
+      meta: "Đang cập nhật",
+      trend: "up",
+      icon: <UserPlus className="h-4 w-4 text-accent" />,
+    },
+    {
+      title: "Bị tạm khóa",
+      value: suspendedUsers.toString(),
+      meta: suspendedUsers ? "Cần xem xét" : "Ổn định",
+      trend: suspendedUsers ? "down" : "up",
+      icon: <ArrowDownRight className="h-4 w-4 text-red-500" />,
+    },
+  ]
+
+  if (!authChecked) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <p className="text-muted-foreground">Đang kiểm tra quyền truy cập...</p>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-muted/40 to-background">
@@ -158,6 +202,9 @@ export default function AdminPage() {
             </div>
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            <Badge variant="secondary" className="hidden sm:flex">
+              Vai trò: {user?.role || "Admin"}
+            </Badge>
             <Button variant="outline" size="sm" className="gap-2">
               <Play className="h-4 w-4" />
               Đồng bộ Neo4j
@@ -165,6 +212,15 @@ export default function AdminPage() {
             <Button className="bg-primary hover:bg-primary/90 text-primary-foreground gap-2 shadow-sm">
               <UserPlus className="h-4 w-4" />
               Thêm người dùng
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="gap-2 text-destructive hover:text-destructive"
+              onClick={handleLogout}
+            >
+              <LogOut className="h-4 w-4" />
+              Đăng xuất
             </Button>
           </div>
         </div>
@@ -188,7 +244,7 @@ export default function AdminPage() {
           </CardHeader>
           <CardContent className="space-y-6">
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              {userStats.map((item) => (
+              {overviewStats.map((item) => (
                 <div
                   key={item.title}
                   className="border border-border/70 rounded-xl bg-gradient-to-br from-card to-muted/30 p-4 shadow-sm space-y-3"
@@ -240,55 +296,65 @@ export default function AdminPage() {
                 </div>
               </CardHeader>
               <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Người dùng</TableHead>
-                      <TableHead>Vai trò</TableHead>
-                      <TableHead>Trạng thái</TableHead>
-                      <TableHead>Neo4j ID</TableHead>
-                      <TableHead>Hành động</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredUsers.map((user) => (
-                      <TableRow key={user.email}>
-                        <TableCell>
-                          <div className="flex items-center gap-3">
-                            <Avatar className="h-9 w-9">
-                              <AvatarFallback>{user.name.slice(0, 2)}</AvatarFallback>
-                            </Avatar>
-                            <div className="min-w-0">
-                              <p className="font-medium truncate">{user.name}</p>
-                              <p className="text-xs text-muted-foreground truncate">{user.email}</p>
-                            </div>
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-sm">{user.role}</TableCell>
-                        <TableCell>
-                          <Badge variant={statusStyle[user.status].variant} className={statusStyle[user.status].tone}>
-                            {statusStyle[user.status].label}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className="font-mono text-xs">
-                            {user.neoId}
-                          </Badge>
-                        </TableCell>
-                        <TableCell className="text-sm text-muted-foreground">
-                          <div className="flex flex-wrap gap-2">
-                            <Button size="sm" variant={actionStyle[user.status].variant}>
-                              {actionStyle[user.status].label}
-                            </Button>
-                            <Button size="sm" variant="outline">
-                              Delete
-                            </Button>
-                          </div>
-                        </TableCell>
+                {userError && <p className="text-sm text-destructive mb-4">{userError}</p>}
+                {isUsersLoading ? (
+                  <p className="text-sm text-muted-foreground">Đang tải danh sách người dùng...</p>
+                ) : filteredUsers.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">Không có người dùng để hiển thị.</p>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Người dùng</TableHead>
+                        <TableHead>Vai trò</TableHead>
+                        <TableHead>Trạng thái</TableHead>
+                        <TableHead>Ngày tạo</TableHead>
+                        <TableHead>Hành động</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredUsers.map((user) => (
+                        <TableRow key={user.id}>
+                          <TableCell>
+                            <div className="flex items-center gap-3">
+                              <Avatar className="h-9 w-9">
+                                <AvatarFallback>{user.name.slice(0, 2)}</AvatarFallback>
+                              </Avatar>
+                              <div className="min-w-0">
+                                <p className="font-medium truncate">{user.name}</p>
+                                <p className="text-xs text-muted-foreground truncate">{user.email}</p>
+                              </div>
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-sm capitalize">{user.role}</TableCell>
+                          <TableCell>
+                            <Badge variant={statusStyle[user.status].variant} className={statusStyle[user.status].tone}>
+                              {statusStyle[user.status].label}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className="text-xs text-muted-foreground">
+                            {user.createdAt ? new Date(user.createdAt).toLocaleDateString("vi-VN") : "—"}
+                          </TableCell>
+                          <TableCell className="text-sm text-muted-foreground">
+                            <div className="flex flex-wrap gap-2">
+                              <Button
+                                size="sm"
+                                variant={actionStyle[user.status].variant}
+                                disabled={actionLoadingId === user.id}
+                                onClick={() => handleToggleStatus(user.id, user.status)}
+                              >
+                                {actionLoadingId === user.id ? "Đang xử lý..." : actionStyle[user.status].label}
+                              </Button>
+                              <Button size="sm" variant="outline">
+                                Delete
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                )}
               </CardContent>
             </Card>
 
